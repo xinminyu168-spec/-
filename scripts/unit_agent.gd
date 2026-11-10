@@ -141,6 +141,8 @@ func _draw() -> void:
 		body_color = Color("d83d58")
 	if charge_remaining > 0.0:
 		var progress: float = 1.0 - charge_remaining / elite_charge_duration
+		draw_rect(Rect2(-26.0, -half - 27.0, 52.0, 7.0), Color("422b28"))
+		draw_rect(Rect2(-26.0, -half - 27.0, 52.0 * progress, 7.0), Color("ffaa57"))
 		draw_circle(Vector2.ZERO, 31.0 + progress * 8.0, Color(1.0, 0.1, 0.12, 0.12 + progress * 0.55))
 		draw_arc(Vector2.ZERO, 37.0, -PI / 2.0, -PI / 2.0 + TAU * progress, 48, Color("ffb1a2"), 3.0, true)
 	draw_rect(Rect2(-half, -half, half * 2.0, half * 2.0), body_color)
