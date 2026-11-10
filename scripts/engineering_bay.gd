@@ -36,11 +36,8 @@ func take_damage(amount: float) -> void:
 	game.state_changed.emit()
 	game.check_defeat()
 func _draw() -> void:
-	var colors: Array[Color] = [Color("4bbcff"),Color("b395ff"),Color("68e5bd")]
-	var color: Color = colors[lane] if hp > 0 else Color("49525e")
-	draw_rect(Rect2(-55,-39,110,78),Color("223242"))
-	draw_rect(Rect2(-55,-39,110,78),color,false,3)
-	draw_rect(Rect2(45,-16,30,32),color)
-	draw_rect(Rect2(-55,-55,110,7),Color("35434c"))
-	draw_rect(Rect2(-55,-55,110*hp/max_hp,7),Color("79e17e"))
-	draw_string(FONT,Vector2(-40,8),"工程基地 %d"%(lane+1),HORIZONTAL_ALIGNMENT_LEFT,-1,17,color)
+	var tint: Color = Color.WHITE if hp>0 else Color(0.3,0.3,0.3)
+	ArtAssets.draw_fit(self,"hangar",Rect2(-105,-95,210,172),tint)
+	draw_rect(Rect2(-65,-106,130,7),Color("243147"))
+	draw_rect(Rect2(-65,-106,130*hp/max_hp,7),Color("79e17e"))
+	draw_string(FONT,Vector2(-43,92),"工程基地 %d"%(lane+1),HORIZONTAL_ALIGNMENT_LEFT,-1,18,Color("e6ebdf"))

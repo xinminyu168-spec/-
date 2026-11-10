@@ -25,7 +25,10 @@ func refresh() -> void:
 	$NoticeLabel.text = ("下一波 %.1f 秒  ·  " % wave.wait_remaining if wave.waiting else "")+game.notice
 	$ResultLabel.text = game.result
 	$ResultLabel.visible = not game.result.is_empty()
-	$PauseButton.text = "继续" if get_tree().paused else "暂停"
+	$PauseButton.text = ""
+	$PauseButton.caption = "继续" if get_tree().paused else "暂停"
+	$PauseButton.golden = true
+	$PauseButton.queue_redraw()
 	$AutoButton.text = "托管：开" if game.auto_battle else "托管：关"
 	$AutoButton.disabled = not game.running
 	for i in range(3):
@@ -50,6 +53,8 @@ func _draw() -> void:
 	for i in range(3):
 		var x: float = 785+i*220
 		var base: EngineeringBay = game.bases[i]
+		draw_rect(Rect2(x-4,988,158,24),Color("75877e"),false,3)
+		draw_rect(Rect2(x-4,1013,158,24),Color("75877e"),false,3)
 		draw_rect(Rect2(x,992,150,16),Color("17222a"))
 		draw_rect(Rect2(x,992,150*base.hp/base.max_hp,16),Color("63d775"))
 		draw_rect(Rect2(x,1017,150,16),Color("17222a"))

@@ -83,8 +83,12 @@ offset_left = 40.0
 offset_top = 35.0
 offset_right = 140.0
 offset_bottom = 100.0
-text = "暂停"
+text = ""
 theme_override_font_sizes/font_size = 25
+script = ExtResource("7")
+art_key = "pause"
+round_shape = true
+caption = "暂停"
 [node name="RestartButton" type="Button" parent="UI/HUD"]
 offset_left = 155.0
 offset_top = 35.0
@@ -108,6 +112,8 @@ offset_bottom = 975.0
 script = ExtResource("7")
 caption = "母舰法宝\n就绪"
 round_shape = true
+art_key = "mothership"
+
 [node name="Portrait1" type="Button" parent="UI/HUD"]
 offset_left = 785.0
 offset_top = 825.0
@@ -116,6 +122,8 @@ offset_bottom = 975.0
 script = ExtResource("7")
 caption = "1号工程基地\n鸾鸟轰炸"
 round_shape = false
+art_key = "portrait_mech"
+
 [node name="Portrait2" type="Button" parent="UI/HUD"]
 offset_left = 1005.0
 offset_top = 825.0
@@ -124,6 +132,8 @@ offset_bottom = 975.0
 script = ExtResource("7")
 caption = "2号工程基地\n玄女点杀"
 round_shape = false
+art_key = "portrait_drone"
+
 [node name="Portrait3" type="Button" parent="UI/HUD"]
 offset_left = 1225.0
 offset_top = 825.0
@@ -132,3 +142,4 @@ offset_bottom = 975.0
 script = ExtResource("7")
 caption = "3号工程基地\n承影护盾"
 round_shape = false
+art_key = "portrait_fighter"

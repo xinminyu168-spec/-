@@ -94,7 +94,7 @@ func deal_damage(target: UnitAgent,amount: float,source: UnitAgent=null,kill_ene
 	if not is_instance_valid(target) or not target.alive: return false
 	var before: float = target.hp
 	var killed: bool = target.take_damage(amount)
-	add_damage_text(target.global_position,before-target.hp)
+	add_damage_text(target.global_position+Vector2(0,-target.visual_height()+45),before-target.hp)
 	if killed and target.team==1:
 		kills += 1
 		coins += 10

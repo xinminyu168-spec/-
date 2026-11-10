@@ -1,6 +1,6 @@
 class_name UnitAgent
 extends Node2D
-## A whitebox unit. BattleGame calls tick(); no collision or navigation is needed.
+## Rendered sprite and independent combat state. BattleGame calls tick().
 
 const TEAM_ALLY := 0
 const TEAM_ENEMY := 1
@@ -132,28 +132,40 @@ func apply_shield(amount: float, duration: float) -> void:
 	queue_redraw()
 
 
+func art_key() -> String:
+	if team == TEAM_ALLY:
+		return ["ally_mech","ally_drone","ally_fighter"][lane]
+	if is_elite: return "enemy_elite"
+	return "enemy_walker" if wave_number >= 2 else "enemy_hound"
+
+func visual_height() -> float:
+	if is_elite: return 175.0
+	if team==TEAM_ALLY: return [125.0,78.0,105.0][lane]
+	return 125.0 if wave_number>=2 else 85.0
+
 func _draw() -> void:
-	if not alive:
-		return
-	var half: float = 18.0 if is_elite else 12.0
-	var body_color := Color("47b5ff") if team == TEAM_ALLY else Color("fa616c")
-	if is_elite:
-		body_color = Color("d83d58")
-	if charge_remaining > 0.0:
-		var progress: float = 1.0 - charge_remaining / elite_charge_duration
-		draw_rect(Rect2(-26.0, -half - 27.0, 52.0, 7.0), Color("422b28"))
-		draw_rect(Rect2(-26.0, -half - 27.0, 52.0 * progress, 7.0), Color("ffaa57"))
-		draw_circle(Vector2.ZERO, 31.0 + progress * 8.0, Color(1.0, 0.1, 0.12, 0.12 + progress * 0.55))
-		draw_arc(Vector2.ZERO, 37.0, -PI / 2.0, -PI / 2.0 + TAU * progress, 48, Color("ffb1a2"), 3.0, true)
-	draw_rect(Rect2(-half, -half, half * 2.0, half * 2.0), body_color)
-	var direction: float = 1.0 if team == TEAM_ALLY else -1.0
-	draw_line(Vector2(direction * 6.0, -5.0), Vector2(direction * 10.0, 0.0), Color.WHITE, 2.0)
-	draw_line(Vector2(direction * 10.0, 0.0), Vector2(direction * 6.0, 5.0), Color.WHITE, 2.0)
-	draw_rect(Rect2(-20.0, -half - 9.0, 40.0, 4.0), Color("243147"))
-	draw_rect(Rect2(-20.0, -half - 9.0, 40.0 * hp / max_hp, 4.0), Color("b2f487"))
-	if shield > 0.0:
-		draw_arc(Vector2.ZERO, half + 8.0, 0.0, TAU, 32, Color("89f5ef"), 2.0, true)
-		draw_rect(Rect2(-20.0, -half - 15.0, 40.0 * shield / max_shield, 3.0), Color("89f5ef"))
-	if stun_remaining > 0.0:
-		draw_line(Vector2(-8.0, -8.0), Vector2(8.0, 8.0), Color("f1ddff"), 3.0)
-		draw_line(Vector2(-8.0, 8.0), Vector2(8.0, -8.0), Color("f1ddff"), 3.0)
+	if not alive: return
+	var height: float = visual_height()
+	var ground: float = 24.0
+	var width: float = height * ArtAssets.REGIONS[art_key()].size.x / ArtAssets.REGIONS[art_key()].size.y
+	var bob: float = sin(game.simulation_time*8.0+get_instance_id()%7)*2.0 if state=="moving" else 0.0
+	draw_set_transform(Vector2(0,ground),0,Vector2(1,0.22))
+	draw_circle(Vector2.ZERO,width*0.38,Color(0,0,0,0.25))
+	draw_set_transform(Vector2.ZERO)
+	if charge_remaining>0:
+		var progress: float = 1.0-charge_remaining/elite_charge_duration
+		draw_circle(Vector2(0,ground),55,Color(1,0.05,0.08,0.12+0.35*progress))
+		draw_arc(Vector2(0,ground),58,-PI/2,-PI/2+TAU*progress,48,Color("ff8173"),4,true)
+		draw_rect(Rect2(-42,-height-18,84,7),Color("422b28"))
+		draw_rect(Rect2(-42,-height-18,84*progress,7),Color("ffaa57"))
+	var tint: Color = Color(0.72,0.67,1) if stun_remaining>0 else Color.WHITE
+	ArtAssets.draw_fit(self,art_key(),Rect2(-width/2,-height+ground+bob,width,height),tint)
+	# Health/status overlays stay independent of the artwork.
+	draw_rect(Rect2(-32,-height+9,64,5),Color("243147"))
+	draw_rect(Rect2(-32,-height+9,64*hp/max_hp,5),Color("b2f487"))
+	if shield>0:
+		draw_arc(Vector2(0,-height*0.32),height*0.65,0,TAU,48,Color("89f5ef"),2,true)
+		draw_rect(Rect2(-32,-height,64*shield/max_shield,4),Color("89f5ef"))
+	if stun_remaining>0:
+		draw_line(Vector2(-10,-height-8),Vector2(10,-height+8),Color("e8dcff"),4)
+		draw_line(Vector2(-10,-height+8),Vector2(10,-height-8),Color("e8dcff"),4)
