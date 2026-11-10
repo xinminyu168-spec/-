@@ -42,6 +42,11 @@ func refresh() -> void:
 	queue_redraw()
 func _draw() -> void:
 	if not is_instance_valid(game): return
+	if game.wave_manager.waiting:
+		var wave: WaveManager = game.wave_manager
+		var alpha: float = sin(PI * clampf(1.0-wave.wait_remaining/maxf(0.01,wave.inter_wave_delay),0,1))
+		draw_rect(Rect2(0,210,1920,550),Color(0.03,0.06,0.09,0.55*alpha))
+		draw_string(FONT,Vector2(815,525),"第 %d / %d 波"%[wave.wave_number+1,wave.total_waves],HORIZONTAL_ALIGNMENT_LEFT,-1,48,Color(0.9,0.95,1,alpha))
 	for i in range(3):
 		var x: float = 785+i*220
 		var base: EngineeringBay = game.bases[i]
