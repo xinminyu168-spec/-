@@ -2,9 +2,9 @@
 
 这是独立的 **Godot 4 / GDScript** 项目。没有外部插件或收费资源，网页版本随包附带开源中文字体。
 
-**目标试玩地址（首次 GitHub 发布成功后可用）： https://xinminyu168-spec.github.io/nantianmen-godot/**
+**目标试玩地址（首次 GitHub 发布成功后可用）： https://xinminyu168-spec.github.io/-/**
 
-**源码仓库： https://github.com/xinminyu168-spec/nantianmen-godot**
+**源码仓库： https://github.com/xinminyu168-spec/-**
 
 GitHub Actions 会自动测试、导出 Godot Web 并发布。部署说明见 `docs/GitHub云端部署.md`。
 
