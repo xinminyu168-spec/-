@@ -1,147 +1,152 @@
 class_name BattleGame
 extends Node2D
-
 signal state_changed
-
+const FONT: Font = preload("res://assets/fonts/ntm-ui.otf")
 @export var unit_scene: PackedScene = preload("res://scenes/unit.tscn")
 @export var auto_start: bool = true
-
-var energy: int = 0
+@export var time_limit: float = 90.0
 var kills: int = 0
-var notice: String = "蓝方每 4 秒产兵。能量满后手动选择技能。"
-var simulation_time: float = 0.0
+var coins: int = 0
+var chests: int = 0
+var notice: String = "能量独立积累，点击金色头像释放技能"
+var simulation_time: float = 0
+var remaining_time: float = 90
 var running: bool = false
+var auto_battle: bool = false
+var result: String = ""
+var ship_cooldown: float = 0
+var auto_clock: float = 0
 var hit_effects: Array[Dictionary] = []
-
+var damage_texts: Array[Dictionary] = []
+var bases: Array[EngineeringBay] = []
 @onready var units_root: Node2D = $Units
 @onready var wave_manager: WaveManager = $WaveManager
-@onready var left_bay: EngineeringBay = $EngineeringBays/LeftBay
-@onready var right_bay: EngineeringBay = $EngineeringBays/RightBay
+@onready var skills: SkillManager = $SkillManager
 @onready var hud: BattleHUD = $UI/HUD
-
-
 func _ready() -> void:
-	left_bay.setup(self)
-	right_bay.setup(self)
-	wave_manager.setup(self, $EnemySpawnPoints/LeftSpawn, $EnemySpawnPoints/RightSpawn)
+	for base: EngineeringBay in $EngineeringBays.get_children():
+		bases.append(base)
+		base.setup(self)
+	wave_manager.game = self
+	skills.game = self
+	remaining_time = time_limit
 	hud.setup(self)
-	if auto_start:
-		start_run()
-
-
+	if auto_start: start_run()
 func start_run() -> void:
-	if running:
-		return
+	if running or not result.is_empty(): return
 	running = true
-	left_bay.start_production()
-	right_bay.start_production()
+	for base: EngineeringBay in bases: base.start_production()
 	wave_manager.start_next_wave()
-
-
 func _physics_process(delta: float) -> void:
-	if not running:
-		return
+	if not running: return
 	simulation_time += delta
-	# Advance a previously scheduled wait before attacks; the death frame is not counted.
+	remaining_time = maxf(0,remaining_time-delta)
+	if remaining_time<=0:
+		finish("失败：90 秒倒计时结束",false)
+		return
+	ship_cooldown = maxf(0,ship_cooldown-delta)
 	wave_manager.tick(delta)
-	for unit: UnitAgent in get_live_units():
-		unit.tick(delta)
-	for effect: Dictionary in hit_effects:
-		effect["remaining"] = float(effect["remaining"]) - delta
-	hit_effects = hit_effects.filter(func(effect: Dictionary) -> bool: return float(effect["remaining"]) > 0.0)
+	for agent: UnitAgent in get_live_units():
+		if not running: break
+		agent.tick(delta)
+	if auto_battle and running and wave_manager.active:
+		auto_clock -= delta
+		if auto_clock<=0:
+			auto_clock = 0.25
+			skills.cast_xuannv_strike()
+			skills.cast_chengying_shield()
+			skills.cast_luanniao_bombardment()
+	for e: Dictionary in hit_effects: e["remaining"]-=delta
+	hit_effects = hit_effects.filter(func(e: Dictionary) -> bool: return e["remaining"]>0)
+	for e: Dictionary in damage_texts: e["remaining"]-=delta
+	damage_texts = damage_texts.filter(func(e: Dictionary) -> bool: return e["remaining"]>0)
 	queue_redraw()
-
-
-func spawn_unit(side: int, route: int, location: Vector2, elite: bool = false) -> UnitAgent:
-	var unit: UnitAgent = unit_scene.instantiate() as UnitAgent
-	units_root.add_child(unit)
-	unit.global_position = location
-	unit.configure(self, side, route, elite)
-	state_changed.emit()
-	return unit
-
-
-func get_live_units(side: int = -1) -> Array[UnitAgent]:
-	var result: Array[UnitAgent] = []
+func spawn_unit(side: int,route: int,location: Vector2,elite: bool=false) -> UnitAgent:
+	var agent: UnitAgent = unit_scene.instantiate() as UnitAgent
+	units_root.add_child(agent)
+	agent.global_position = location
+	agent.configure(self,side,route,elite)
+	return agent
+func get_live_units(side: int=-1) -> Array[UnitAgent]:
+	var items: Array[UnitAgent] = []
 	for child: Node in units_root.get_children():
-		if child is UnitAgent and child.alive and (side == -1 or child.team == side):
-			result.append(child)
-	return result
-
-
+		if child is UnitAgent and child.alive and (side==-1 or child.team==side): items.append(child)
+	return items
 func find_target(attacker: UnitAgent) -> UnitAgent:
-	var best: UnitAgent = null
-	var best_distance: float = INF
+	var best: UnitAgent
+	var closest: float = INF
 	for other: UnitAgent in get_live_units():
-		if other.team == attacker.team or other.lane != attacker.lane:
-			continue
-		var distance: float = attacker.global_position.distance_squared_to(other.global_position)
-		if distance <= attacker.attack_range * attacker.attack_range and distance < best_distance:
+		if other.team==attacker.team or other.lane!=attacker.lane: continue
+		var distance: float = other.global_position.distance_squared_to(attacker.global_position)
+		if distance<=attacker.attack_range*attacker.attack_range and distance<closest:
 			best = other
-			best_distance = distance
+			closest = distance
 	return best
-
-
-func add_energy(amount: int) -> void:
-	energy = clampi(energy + amount, 0, 100)
-	state_changed.emit()
-
-
-func deal_damage(target: UnitAgent, amount: float, _source: UnitAgent = null, kill_energy: int = 20) -> bool:
-	if not is_instance_valid(target) or not target.alive:
-		return false
+func can_attack_base(enemy: UnitAgent) -> bool:
+	return bases[enemy.lane].hp>0 and enemy.position.x<=bases[enemy.lane].position.x+enemy.attack_range
+func attack_base(enemy: UnitAgent) -> void:
+	bases[enemy.lane].take_damage(enemy.attack_damage)
+func check_defeat() -> void:
+	for base: EngineeringBay in bases:
+		if base.hp>0: return
+	finish("失败：所有工程基地已被摧毁",false)
+func deal_damage(target: UnitAgent,amount: float,source: UnitAgent=null,kill_energy: int=20,skill_owner: EngineeringBay=null) -> bool:
+	if not is_instance_valid(target) or not target.alive: return false
+	var before: float = target.hp
 	var killed: bool = target.take_damage(amount)
-	if killed and target.team == UnitAgent.TEAM_ENEMY:
+	add_damage_text(target.global_position,before-target.hp)
+	if killed and target.team==1:
 		kills += 1
-		add_energy(kill_energy)
+		coins += 10
+		var owner: EngineeringBay = skill_owner
+		if is_instance_valid(source): owner = source.origin_base
+		if is_instance_valid(owner): owner.add_energy(kill_energy)
 		wave_manager.notify_enemy_died(target)
 	state_changed.emit()
 	return killed
-
-
-func perform_basic_attack(attacker: UnitAgent, target: UnitAgent) -> void:
-	if not attacker.alive or not target.alive:
-		return
-	var reward: int = 0
-	if attacker.team == UnitAgent.TEAM_ALLY:
-		add_energy(2)
-		reward = 20
-	add_hit_effect(attacker.global_position, target.global_position, Color("b1e6ff"))
-	deal_damage(target, attacker.attack_damage, attacker, reward)
-
-
+func perform_basic_attack(attacker: UnitAgent,target: UnitAgent) -> void:
+	if not attacker.alive or not target.alive: return
+	if attacker.team==0 and is_instance_valid(attacker.origin_base): attacker.origin_base.add_energy(2)
+	add_hit_effect(attacker.global_position,target.global_position,Color("b1e6ff"))
+	deal_damage(target,attacker.attack_damage,attacker)
 func perform_elite_burst(elite: UnitAgent) -> void:
-	add_hit_effect(elite.global_position, elite.global_position, Color("ff796b"), elite.elite_burst_radius)
-	for unit: UnitAgent in get_live_units(UnitAgent.TEAM_ALLY):
-		if unit.global_position.distance_to(elite.global_position) <= elite.elite_burst_radius:
-			deal_damage(unit, elite.elite_burst_damage, elite)
-	show_notice("精英大招已释放：红圈附近己方单位受到伤害。")
-
-
-func can_cast() -> bool:
-	return running and energy >= 100 and not get_tree().paused
-
-
-func spend_energy() -> bool:
-	if not can_cast():
-		return false
-	energy -= 100
+	add_hit_effect(elite.global_position,elite.global_position,Color("ff796b"),elite.elite_burst_radius)
+	for agent: UnitAgent in get_live_units(0):
+		if agent.global_position.distance_to(elite.global_position)<=elite.elite_burst_radius: deal_damage(agent,elite.elite_burst_damage,elite)
+	for base: EngineeringBay in bases:
+		if base.global_position.distance_to(elite.global_position)<=elite.elite_burst_radius: base.take_damage(elite.elite_burst_damage)
+func can_cast(index: int) -> bool:
+	return running and not get_tree().paused and bases[index].hp>0 and bases[index].energy>=100
+func spend_energy(index: int) -> bool:
+	if not can_cast(index): return false
+	bases[index].energy -= 100
 	state_changed.emit()
 	return true
-
-
+func cast_mothership() -> bool:
+	if not running or get_tree().paused or ship_cooldown>0 or get_live_units(1).is_empty(): return false
+	ship_cooldown = 20
+	for enemy: UnitAgent in get_live_units(1): deal_damage(enemy,60,null,0)
+	show_notice("母舰法宝：全场 60 伤害，独立冷却 20 秒")
+	return true
+func finish(message: String,victory: bool) -> void:
+	if not running: return
+	running = false
+	result = message
+	if victory: chests += 1
+	for base: EngineeringBay in bases: base.spawn_timer.stop()
+	state_changed.emit()
 func show_notice(text: String) -> void:
 	notice = text
 	state_changed.emit()
-
-
-func add_hit_effect(from: Vector2, to: Vector2, color: Color, radius: float = 0.0) -> void:
-	hit_effects.append({"from": from, "to": to, "color": color, "radius": radius, "remaining": 0.3})
-
-
+func add_hit_effect(from: Vector2,to: Vector2,color: Color,radius: float=0) -> void:
+	hit_effects.append({"from":from,"to":to,"color":color,"radius":radius,"remaining":0.3})
+func add_damage_text(at: Vector2,amount: float) -> void:
+	damage_texts.append({"at":at,"text":"-%d"%roundi(amount),"remaining":0.85})
 func _draw() -> void:
-	for effect: Dictionary in hit_effects:
-		if float(effect["radius"]) > 0.0:
-			draw_arc(effect["to"], effect["radius"], 0.0, TAU, 48, effect["color"], 3.0, true)
-		else:
-			draw_line(effect["from"], effect["to"], effect["color"], 2.0, true)
+	for e: Dictionary in hit_effects:
+		if e["radius"]>0: draw_arc(e["to"],e["radius"],0,TAU,48,e["color"],3,true)
+		else: draw_line(e["from"],e["to"],e["color"],3,true)
+	for e: Dictionary in damage_texts:
+		var point: Vector2 = e["at"]+Vector2(-25,-40-(0.85-e["remaining"])*85)
+		draw_string(FONT,point+Vector2(2,2),e["text"],HORIZONTAL_ALIGNMENT_LEFT,-1,32,Color.BLACK)
+		draw_string(FONT,point,e["text"],HORIZONTAL_ALIGNMENT_LEFT,-1,32,Color(1,0.25,0.26,minf(1,e["remaining"]*3)))

@@ -5,16 +5,17 @@ extends Node2D
 const TEAM_ALLY := 0
 const TEAM_ENEMY := 1
 
-@export var move_speed: float = 48.0
-@export var attack_range: float = 76.0
+@export var move_speed: float = 110.0
+@export var attack_range: float = 115.0
 @export var attack_damage: float = 10.0
 @export var attack_interval: float = 1.0
 @export var elite_charge_interval: float = 8.0
 @export var elite_charge_duration: float = 3.0
 @export var elite_burst_damage: float = 60.0
-@export var elite_burst_radius: float = 145.0
+@export var elite_burst_radius: float = 220.0
 
 var game: BattleGame
+var origin_base: EngineeringBay
 var team: int = TEAM_ALLY
 var lane: int = 0
 var is_elite: bool = false
@@ -40,7 +41,7 @@ func configure(owner_game: BattleGame, side: int, route: int, elite: bool = fals
 	max_hp = 400.0 if is_elite else 100.0
 	hp = max_hp
 	if is_elite:
-		move_speed = 30.0
+		move_speed = 75.0
 	special_clock = elite_charge_interval
 	queue_redraw()
 
@@ -84,14 +85,15 @@ func tick(delta: float) -> void:
 			attack_clock = attack_interval
 			game.perform_basic_attack(self, target)
 	else:
-		state = "moving"
-		var direction: float = -1.0 if team == TEAM_ALLY else 1.0
-		position.y += direction * move_speed * delta
-		# Staging lines keep surviving units visible between waves.
-		if team == TEAM_ALLY:
-			position.y = maxf(position.y, 210.0)
+		if team == TEAM_ENEMY and game.can_attack_base(self):
+			state = "attacking"
+			if attack_clock <= 0.00001:
+				attack_clock = attack_interval
+				game.attack_base(self)
 		else:
-			position.y = minf(position.y, 710.0)
+			state = "moving"
+			var direction: float = 1.0 if team == TEAM_ALLY else -1.0
+			position.x = clampf(position.x + direction * move_speed * delta, 210.0, 1580.0)
 	queue_redraw()
 
 
@@ -142,9 +144,9 @@ func _draw() -> void:
 		draw_circle(Vector2.ZERO, 31.0 + progress * 8.0, Color(1.0, 0.1, 0.12, 0.12 + progress * 0.55))
 		draw_arc(Vector2.ZERO, 37.0, -PI / 2.0, -PI / 2.0 + TAU * progress, 48, Color("ffb1a2"), 3.0, true)
 	draw_rect(Rect2(-half, -half, half * 2.0, half * 2.0), body_color)
-	var direction: float = -1.0 if team == TEAM_ALLY else 1.0
-	draw_line(Vector2(-5.0, direction * 6.0), Vector2(0.0, direction * 10.0), Color.WHITE, 2.0)
-	draw_line(Vector2(0.0, direction * 10.0), Vector2(5.0, direction * 6.0), Color.WHITE, 2.0)
+	var direction: float = 1.0 if team == TEAM_ALLY else -1.0
+	draw_line(Vector2(direction * 6.0, -5.0), Vector2(direction * 10.0, 0.0), Color.WHITE, 2.0)
+	draw_line(Vector2(direction * 10.0, 0.0), Vector2(direction * 6.0, 5.0), Color.WHITE, 2.0)
 	draw_rect(Rect2(-20.0, -half - 9.0, 40.0, 4.0), Color("243147"))
 	draw_rect(Rect2(-20.0, -half - 9.0, 40.0 * hp / max_hp, 4.0), Color("b2f487"))
 	if shield > 0.0:

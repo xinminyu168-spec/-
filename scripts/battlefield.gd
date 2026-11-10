@@ -1,15 +1,13 @@
 extends Node2D
-
-const UI_FONT: Font = preload("res://assets/fonts/ntm-ui.otf")
-
-
 func _draw() -> void:
-	draw_rect(Rect2(20, 145, 500, 655), Color("122333"))
-	for x in [155.0, 385.0]:
-		draw_rect(Rect2(x - 66.0, 154.0, 132.0, 577.0), Color("1a3041"))
-		draw_dashed_line(Vector2(x, 220), Vector2(x, 700), Color("304d5d"), 2.0, 9.0)
-		draw_circle(Vector2(x, 185), 8.0, Color("ff6670"))
-	draw_line(Vector2(270, 150), Vector2(270, 794), Color("3d5367"), 2.0)
-	draw_rect(Rect2(20, 451, 500, 42), Color("254459"))
-	draw_string(UI_FONT, Vector2(35, 478), "交战区", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 13, Color("97b8cc"))
-	draw_line(Vector2(24, 795), Vector2(516, 795), Color("467b9c"), 2.0)
+	draw_rect(Rect2(0,0,1920,1080),Color("111e2c"))
+	draw_rect(Rect2(0,170,1920,610),Color("203c46"))
+	draw_rect(Rect2(40,205,1840,540),Color("2b4c50"),false,3)
+	draw_set_transform(Vector2(1000,560),0,Vector2(1,0.3))
+	draw_circle(Vector2.ZERO,530,Color("38565a"))
+	draw_arc(Vector2.ZERO,530,0,TAU,96,Color("719084"),5,true)
+	draw_arc(Vector2.ZERO,440,0,TAU,96,Color("55776e"),3,true)
+	draw_set_transform(Vector2.ZERO)
+	for y in [430,540,650]: draw_dashed_line(Vector2(310,y),Vector2(1750,y),Color(0.6,0.7,0.7,0.12),2,18)
+	draw_rect(Rect2(0,790,1920,290),Color("142430"))
+	draw_line(Vector2(0,790),Vector2(1920,790),Color("536c72"),3)

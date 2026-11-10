@@ -1,264 +1,177 @@
 extends SceneTree
-## Run after importing: godot --headless --path . --script res://tests/run_tests.gd
-
 var checks: int = 0
 var failures: int = 0
 var packed: PackedScene = preload("res://scenes/main.tscn")
-
-
-func _initialize() -> void:
-	call_deferred("_run")
-
-
-func check(condition: bool, description: String) -> void:
+func _initialize() -> void: call_deferred("run")
+func check(value: bool,message: String) -> void:
 	checks += 1
-	if not condition:
+	if not value:
 		failures += 1
-		push_error("FAIL: " + description)
-
-
+		push_error(message)
 func make_game() -> BattleGame:
-	var game: BattleGame = packed.instantiate() as BattleGame
+	var game: BattleGame = packed.instantiate()
 	game.auto_start = false
 	root.add_child(game)
 	game.set_physics_process(false)
 	game.running = true
 	return game
-
-
-func unit(game: BattleGame, team: int, y: float, elite: bool = false) -> UnitAgent:
-	return game.spawn_unit(team, 0, Vector2(155, y), elite)
-
-
-func _run() -> void:
-	test_scene_and_production()
-	test_basic_combat()
-	test_elite_charge()
-	test_bombardment()
-	test_interrupt()
-	test_shield()
+func agent(game: BattleGame,team: int,x: float,base: int=0,elite: bool=false) -> UnitAgent:
+	var item: UnitAgent = game.spawn_unit(team,base,Vector2(x,430+base*110),elite)
+	if team==0: item.origin_base=game.bases[base]
+	return item
+func run() -> void:
+	test_layout_and_combat()
+	test_skills()
 	test_waves()
-	test_button_guards()
-	test_long_run()
-	await test_real_timers_and_pause()
-	print("NANTIANMEN TESTS: %d checks, %d failures" % [checks, failures])
-	quit(0 if failures == 0 else 1)
-
-
-func test_scene_and_production() -> void:
-	var game: BattleGame = make_game()
-	check(game.left_bay.position == Vector2(155, 760), "left bay position")
-	check(game.right_bay.position == Vector2(385, 760), "right bay position")
-	check(game.left_bay.spawn_timer.wait_time == 4.0, "left production interval")
-	check(game.right_bay.spawn_timer.wait_time == 4.0, "right production interval")
-	game.left_bay.start_production()
-	check(not game.left_bay.spawn_timer.is_stopped(), "production timer starts")
-	game.left_bay.spawn_timer.timeout.emit()
-	game.right_bay.spawn_timer.timeout.emit()
-	var allies: Array[UnitAgent] = game.get_live_units(0)
-	check(allies.size() == 2, "two independent bays each create one unit")
-	check(allies[0].lane == 0 and allies[1].lane == 1, "bay lane ownership")
-	var before: float = allies[0].position.y
-	allies[0].tick(0.5)
-	check(allies[0].position.y < before, "allies move up")
-	var red: UnitAgent = unit(game, 1, 300)
-	red.tick(0.5)
-	check(red.position.y > 300, "enemies move down")
-	game.free()
-
-
-func test_real_timers_and_pause() -> void:
-	var game: BattleGame = make_game()
-	game.set_physics_process(true)
-	game.left_bay.start_production()
-	game.right_bay.start_production()
-	await create_timer(3.8, true).timeout
-	check(game.get_live_units(0).is_empty(), "real timers do not produce early")
-	await create_timer(0.4, true).timeout
-	check(game.get_live_units(0).size() == 2, "real timers produce two units after four seconds")
-	game.wave_manager.start_next_wave()
-	for enemy: UnitAgent in game.get_live_units(1):
-		game.deal_damage(enemy, 1000, null, 0)
-	var remaining: float = game.wave_manager.wait_remaining
-	var before: float = game.simulation_time
-	paused = true
-	await create_timer(0.15, true).timeout
-	check(game.wave_manager.wait_remaining == remaining and game.simulation_time == before, "real scene pause freezes wave and game clocks")
-	paused = false
-	await create_timer(0.15, true).timeout
-	check(game.wave_manager.wait_remaining < remaining and game.simulation_time > before, "resume advances only the remaining countdown")
-	game.free()
-
-
-func test_basic_combat() -> void:
-	var game: BattleGame = make_game()
-	var blue: UnitAgent = unit(game, 0, 400)
-	var red: UnitAgent = unit(game, 1, 350)
+	test_auto_and_end()
+	test_complete_match()
+	await test_real_production()
+	print("NANTIANMEN TESTS: %d checks, %d failures"%[checks,failures])
+	quit(0 if failures==0 else 1)
+func test_layout_and_combat() -> void:
+	var g: BattleGame = make_game()
+	check(g.bases.size()==3,"three engineering bases")
+	check(not g.auto_battle and g.remaining_time==90,"manual mode and 90 seconds")
+	check(ProjectSettings.get_setting("display/window/size/viewport_width")==1920,"landscape width")
+	check(ProjectSettings.get_setting("display/window/size/viewport_height")==1080,"landscape height")
+	for i in range(3):
+		g.bases[i]._on_spawn_timer_timeout()
+		check(g.bases[i].spawn_timer.wait_time==4,"independent four-second timers")
+	var allies: Array[UnitAgent] = g.get_live_units(0)
+	check(allies.size()==3,"three bases each produce a unit")
+	for i in range(3): check(allies[i].origin_base==g.bases[i],"unit remembers its birth base")
+	var blue: UnitAgent = agent(g,0,800,1)
+	var red: UnitAgent = agent(g,1,880,1)
 	blue.tick(0.01)
-	check(blue.position.y == 400, "stop within attack range")
-	check(red.hp == 90 and game.energy == 2, "basic hit deals ten and gives two energy")
+	check(blue.position.x==800 and red.hp==90,"stop in range and hit ten")
+	check(g.bases[1].energy==2 and g.bases[0].energy==0 and g.bases[2].energy==0,"energy goes only to the owner")
 	blue.tick(0.9)
-	check(red.hp == 90, "no attack before one second")
+	check(red.hp==90,"no extra hit before one second")
 	blue.tick(0.1)
-	check(red.hp == 80 and game.energy == 4, "attack after one second")
-	red.hp = 10
-	game.perform_basic_attack(blue, red)
-	check(game.energy == 26 and game.kills == 1, "lethal hit gives two plus twenty")
-	game.deal_damage(red, 10, blue)
-	check(game.energy == 26 and game.kills == 1, "dead targets do not reward twice")
-	var before: float = blue.position.y
+	check(red.hp==80,"next basic after one second")
+	red.hp=10
+	g.perform_basic_attack(blue,red)
+	check(g.bases[1].energy==26 and g.kills==1 and g.coins==10,"kill rewards owner and coins")
+	g.deal_damage(red,10,blue)
+	check(g.kills==1,"no duplicate kill rewards")
 	blue.tick(0.1)
-	check(blue.position.y < before, "resume moving after target death")
-	var other_lane: UnitAgent = unit(game, 1, blue.position.y - 20)
-	other_lane.lane = 1
-	check(game.find_target(blue) == null, "lanes do not target each other")
-	game.energy = 99
-	game.add_energy(25)
-	check(game.energy == 100, "energy capped at one hundred")
-	game.free()
-
-
-func test_elite_charge() -> void:
-	var game: BattleGame = make_game()
-	var elite: UnitAgent = unit(game, 1, 350, true)
-	var blue: UnitAgent = unit(game, 0, 450)
-	elite.move_speed = 0
+	check(blue.position.x>800,"survivor resumes rightward movement")
+	check(not g.damage_texts.is_empty() and g.damage_texts[0]["text"]=="-10","actual red damage popup")
+	g.bases[1].add_energy(999)
+	check(g.bases[1].energy==100,"energy capped")
+	var enemy: UnitAgent = agent(g,1,600,2)
+	enemy.tick(0.5)
+	check(enemy.position.x<600,"enemy advances left")
+	g.attack_base(enemy)
+	check(g.bases[2].hp==590 and g.bases[0].hp==600,"enemy damages corresponding base")
+	g.free()
+func test_skills() -> void:
+	var g: BattleGame = make_game()
+	var blue: UnitAgent = agent(g,0,900)
+	var a: UnitAgent = agent(g,1,1050)
+	var b: UnitAgent = agent(g,1,1100,2)
+	g.bases[0].energy=100
+	g.hud.refresh()
+	check(g.hud.portraits[0].golden and g.bases[0].energy==100 and a.hp==100,"gold highlight never auto casts")
+	g.hud.get_node("Portrait1").pressed.emit()
+	check(not a.alive and not b.alive and blue.hp==100,"AOE targets all enemies only")
+	check(g.bases[0].energy==50 and g.bases[1].energy==0,"AOE refunds 25 per kill to base one")
+	var elite: UnitAgent = agent(g,1,1080,0,true)
+	elite.move_speed=0
 	elite.tick(7.9)
-	check(elite.charge_remaining == 0, "no special before eight seconds")
+	check(elite.charge_remaining==0,"elite waits eight seconds")
 	elite.tick(0.1)
-	check(elite.charge_remaining == 3 and elite.state == "charging", "eight seconds starts three-second charge")
-	elite.tick(2.9)
-	check(blue.hp == 100, "warning circle precedes burst damage")
-	elite.tick(0.1)
-	check(blue.hp == 40, "burst hits nearby ally for sixty")
-	elite.tick(5.0)
-	check(elite.charge_remaining == 3, "next charge begins eight seconds after previous charge began")
-	game.free()
-
-
-func test_bombardment() -> void:
-	var game: BattleGame = make_game()
-	var skills: SkillManager = game.get_node("SkillManager")
-	var blue: UnitAgent = unit(game, 0, 600)
-	var a: UnitAgent = unit(game, 1, 250)
-	var b: UnitAgent = game.spawn_unit(1, 1, Vector2(385, 250))
-	var elite: UnitAgent = unit(game, 1, 350, true)
-	game.energy = 100
-	check(skills.cast_luanniao_bombardment(), "bombardment casts manually")
-	check(not a.alive and not b.alive, "AOE hits enemies in both lanes")
-	check(elite.hp == 280 and blue.hp == 100, "AOE spares allies and deals 120")
-	check(game.energy == 50, "each skill kill returns twenty plus extra five")
-	check(not skills.cast_luanniao_bombardment(), "insufficient energy blocks another cast")
-	game.free()
-
-
-func test_interrupt() -> void:
-	var game: BattleGame = make_game()
-	var skills: SkillManager = game.get_node("SkillManager")
-	var blue: UnitAgent = unit(game, 0, 450)
-	var elite: UnitAgent = unit(game, 1, 350, true)
-	game.energy = 100
-	check(not skills.cast_xuannv_strike() and game.energy == 100, "no charging target means no spending")
-	elite.charge_remaining = 1.0
-	elite.state = "charging"
-	check(skills.cast_xuannv_strike(), "strike accepts a charging elite")
-	check(elite.hp == 100 and elite.charge_remaining == 0, "strike deals 300 and cancels pending burst")
-	check(elite.stun_remaining == 2 and game.energy == 0, "strike costs 100 and stuns for two seconds")
-	var before: Vector2 = elite.position
+	check(elite.charge_remaining==3,"three-second telegraph")
+	g.bases[1].energy=100
+	g.skills.cast_xuannv_strike()
+	check(elite.hp==100 and elite.stun_remaining==2 and elite.charge_remaining==0,"strike damages and cancels burst")
+	check(g.bases[1].energy==0,"strike spends its own energy")
+	var x: float = elite.position.x
 	elite.tick(1.9)
-	check(elite.position == before and blue.hp == 100, "stun blocks movement and damage")
-	elite.tick(0.11)
-	elite.tick(0.01)
-	check(elite.charge_remaining == 0 and blue.hp == 100, "cancelled burst is never released after stun")
-	game.free()
-
-
-func test_shield() -> void:
-	var game: BattleGame = make_game()
-	var skills: SkillManager = game.get_node("SkillManager")
-	var blue: UnitAgent = unit(game, 0, 600)
-	var blue_right: UnitAgent = game.spawn_unit(0, 1, Vector2(385, 600))
-	var red: UnitAgent = unit(game, 1, 200)
-	game.energy = 100
-	check(skills.cast_chengying_shield(), "shield casts")
-	check(blue.shield == 150 and blue_right.shield == 150 and red.shield == 0, "shield covers all current allies only")
-	game.deal_damage(blue, 170, red)
-	check(blue.shield == 0 and blue.hp == 80, "shield absorbs first and excess reaches HP")
-	var newborn: UnitAgent = unit(game, 0, 700)
-	check(newborn.shield == 0, "new units do not inherit an old cast")
-	blue_right.tick(4.9)
-	check(blue_right.shield == 150, "shield remains before five seconds")
-	blue_right.tick(0.11)
-	check(blue_right.shield == 0, "shield expires after five seconds")
-	game.free()
-
-
+	check(elite.position.x==x and blue.hp==100,"stun suppresses motion and burst")
+	g.bases[1].energy=100
+	check(not g.skills.cast_xuannv_strike() and g.bases[1].energy==100,"no charging target means no cost")
+	g.bases[2].energy=100
+	g.skills.cast_chengying_shield()
+	check(blue.shield==150 and g.bases[2].energy==0,"shield uses base three energy")
+	g.deal_damage(blue,170,elite)
+	check(blue.shield==0 and blue.hp==80,"shield absorbs before HP")
+	blue.apply_shield(150,5)
+	blue.tick(5.01)
+	check(blue.shield==0,"five-second shield expires")
+	g.free()
 func test_waves() -> void:
-	var game: BattleGame = make_game()
-	var waves: WaveManager = game.wave_manager
-	waves.initial_enemies_per_lane = 1
-	waves.additional_per_wave = 0
-	waves.elite_from_wave = 99
-	var survivor: UnitAgent = unit(game, 0, 500)
-	survivor.hp = 53
-	game.energy = 47
-	waves.start_next_wave()
-	check(waves.wave_number == 1 and waves.remaining_enemies == 2, "first wave spawns both top lanes")
-	var enemies: Array[UnitAgent] = game.get_live_units(1)
-	game.deal_damage(enemies[0], 1000, survivor, 0)
-	check(waves.active and not waves.waiting, "partial clear does not progress")
-	game.deal_damage(enemies[1], 1000, survivor, 0)
-	check(waves.waiting and waves.wait_remaining == 2, "last death starts two-second interval")
-	waves.notify_enemy_died(enemies[1])
-	check(waves.wait_remaining == 2, "duplicate death does not reschedule countdown")
-	waves.tick(1.99)
-	check(waves.wave_number == 1, "no early next wave")
-	waves.tick(0.01)
-	check(waves.wave_number == 2 and waves.remaining_enemies == 2, "next wave after full delay")
-	check(survivor.alive and survivor.hp == 53 and survivor.position.y == 500, "same survivor and HP persist")
-	check(game.energy == 47, "stored energy persists")
-	waves.start_next_wave()
-	check(waves.wave_number == 2, "active wave cannot spawn twice")
-	game.free()
+	var g: BattleGame = make_game()
+	var survivor: UnitAgent = agent(g,0,700)
+	survivor.hp=53
+	g.bases[0].hp=431
+	g.bases[0].energy=47
+	g.bases[1].energy=82
+	g.bases[2].energy=19
+	g.wave_manager.start_next_wave()
+	check(g.wave_manager.wave_number==1 and g.wave_manager.remaining_enemies==6,"first of three waves")
+	for enemy: UnitAgent in g.get_live_units(1): g.deal_damage(enemy,10000,null,0)
+	check(g.wave_manager.waiting and g.running,"clearing wave schedules a transition")
+	g.wave_manager.tick(1.99)
+	check(g.wave_manager.wave_number==1,"full two-second gap required")
+	g.wave_manager.tick(0.01)
+	check(g.wave_manager.wave_number==2 and g.get_live_units(1).size()==9,"second wave includes three formations")
+	check(survivor.alive and survivor.hp==53 and g.bases[0].hp==431,"survivor and base HP retained")
+	check(g.bases[0].energy==47 and g.bases[1].energy==82 and g.bases[2].energy==19,"all independent energy values retained")
+	for enemy: UnitAgent in g.get_live_units(1): g.deal_damage(enemy,10000,null,0)
+	g.wave_manager.tick(2)
+	check(g.wave_manager.wave_number==3 and g.get_live_units(1).size()==12,"third wave spawns")
+	for enemy: UnitAgent in g.get_live_units(1): g.deal_damage(enemy,10000,null,0)
+	check(not g.running and g.chests==1 and g.result.begins_with("胜利"),"third clear awards one chest and victory")
+	g.wave_manager.tick(10)
+	g.wave_manager.start_next_wave()
+	check(g.wave_manager.wave_number==3,"no fourth wave")
+	g.free()
+func test_auto_and_end() -> void:
+	var g: BattleGame = make_game()
+	g.wave_manager.start_next_wave()
+	g.bases[0].energy=100
+	g._physics_process(0.1)
+	check(g.bases[0].energy==100,"manual mode retains full energy")
+	g.hud.get_node("AutoButton").button_pressed=true
+	g._physics_process(0.25)
+	check(g.auto_battle and g.kills==6,"autoplay explicitly enables skill casting")
+	g.hud.get_node("AutoButton").button_pressed=false
+	check(not g.auto_battle,"autoplay can be disabled")
+	g.remaining_time=0.01
+	g._physics_process(0.02)
+	check(not g.running and g.result.begins_with("失败"),"timeout ends the match")
+	g.free()
+	g=make_game()
+	for base: EngineeringBay in g.bases: base.take_damage(600)
+	check(not g.running,"destroying every base causes defeat")
+	g.free()
+func test_real_production() -> void:
+	var g: BattleGame = make_game()
+	for base: EngineeringBay in g.bases: base.start_production()
+	await create_timer(3.8,true).timeout
+	check(g.get_live_units(0).is_empty(),"real Timer does not spawn early")
+	await create_timer(0.4,true).timeout
+	check(g.get_live_units(0).size()==3,"three real four-second Timers produce independently")
+	g.set_physics_process(true)
+	var before: float = g.remaining_time
+	paused=true
+	await create_timer(0.15,true).timeout
+	check(g.remaining_time==before,"pause freezes match timer")
+	paused=false
+	await create_timer(0.15,true).timeout
+	check(g.remaining_time<before,"resume advances timer")
+	g.free()
 
-
-func test_button_guards() -> void:
-	var game: BattleGame = make_game()
-	var skills: SkillManager = game.get_node("SkillManager")
-	var elite: UnitAgent = unit(game, 1, 300, true)
-	unit(game, 0, 600)
-	elite.charge_remaining = 3
-	game.energy = 100
-	game.hud.refresh()
-	check(not game.hud.skill_one.disabled and not game.hud.skill_two.disabled and not game.hud.skill_three.disabled, "full energy lights valid skill buttons")
-	check(game.energy == 100 and elite.hp == 400, "refresh never auto-casts")
-	game.hud.skill_two.pressed.emit()
-	check(game.energy == 0 and elite.hp == 100, "button signal calls the actual independent skill function")
-	game.energy = 100
-	root.get_tree().paused = true
-	check(not skills.cast_chengying_shield(), "skills cannot cast while paused")
-	game.hud.refresh()
-	check(game.hud.skill_one.disabled and game.hud.skill_three.disabled, "pause disables skill UI")
-	root.get_tree().paused = false
-	game.free()
-
-
-func test_long_run() -> void:
-	var game: BattleGame = make_game()
-	game.wave_manager.start_next_wave()
-	var skills: SkillManager = game.get_node("SkillManager")
-	for frame: int in range(7200):
-		if frame > 0 and frame % 240 == 0:
-			game.left_bay.spawn_timer.timeout.emit()
-			game.right_bay.spawn_timer.timeout.emit()
-		game._physics_process(1.0 / 60.0)
-		if game.energy == 100:
-			if is_instance_valid(skills.get_charging_elite()):
-				skills.cast_xuannv_strike()
-			else:
-				skills.cast_luanniao_bombardment()
-	check(game.wave_manager.wave_number >= 2, "full simulation progresses beyond the first wave")
-	check(game.kills > 0 and game.energy >= 0 and game.energy <= 100, "long-run kills and energy remain valid")
-	for agent: UnitAgent in game.get_live_units():
-		check(agent.hp > 0 and agent.hp <= agent.max_hp and agent.position.is_finite(), "live unit state valid")
-	game.free()
+func test_complete_match() -> void:
+	var g: BattleGame = make_game()
+	g.auto_battle=true
+	g.wave_manager.start_next_wave()
+	for frame in range(5401):
+		if not g.running: break
+		if frame>0 and frame%240==0:
+			for base: EngineeringBay in g.bases: base._on_spawn_timer_timeout()
+		g._physics_process(1.0/60)
+	print("SIMULATION: ",g.result," wave=",g.wave_manager.wave_number," time=",g.simulation_time)
+	check(g.result.begins_with("胜利"),"default auto battle can finish all three waves within 90 seconds")
+	g.free()

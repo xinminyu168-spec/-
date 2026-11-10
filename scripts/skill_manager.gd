@@ -24,13 +24,13 @@ func get_charging_elite() -> UnitAgent:
 
 func cast_luanniao_bombardment() -> bool:
 	var enemies: Array[UnitAgent] = game.get_live_units(UnitAgent.TEAM_ENEMY)
-	if enemies.is_empty() or not game.spend_energy():
+	if enemies.is_empty() or not game.spend_energy(0):
 		return false
 	var defeated: int = 0
 	for enemy: UnitAgent in enemies:
 		game.add_hit_effect(Vector2(enemy.global_position.x, 150.0), enemy.global_position, Color("ffcc86"))
 		# The new brief says +20 per kill, with an EXTRA +5 for bombardment.
-		if game.deal_damage(enemy, bombard_damage, null, 20 + bombard_kill_refund):
+		if game.deal_damage(enemy, bombard_damage, null, 20 + bombard_kill_refund, game.bases[0]):
 			defeated += 1
 	game.show_notice("鸾鸟轰炸：击杀 %d 个敌人，每个回能 20 + %d（上限100）。" % [defeated, bombard_kill_refund])
 	return true
@@ -38,10 +38,10 @@ func cast_luanniao_bombardment() -> bool:
 
 func cast_xuannv_strike() -> bool:
 	var target: UnitAgent = get_charging_elite()
-	if not is_instance_valid(target) or not game.spend_energy():
+	if not is_instance_valid(target) or not game.spend_energy(1):
 		return false
 	game.add_hit_effect(Vector2(target.global_position.x, 140.0), target.global_position, Color("cfb7ff"))
-	game.deal_damage(target, strike_damage)
+	game.deal_damage(target, strike_damage, null, 25, game.bases[1])
 	if target.alive:
 		target.interrupt_and_stun(stun_duration)
 	game.show_notice("玄女点杀：300 伤害，取消蓄力；存活目标眩晕 2 秒。")
@@ -50,7 +50,7 @@ func cast_xuannv_strike() -> bool:
 
 func cast_chengying_shield() -> bool:
 	var allies: Array[UnitAgent] = game.get_live_units(UnitAgent.TEAM_ALLY)
-	if allies.is_empty() or not game.spend_energy():
+	if allies.is_empty() or not game.spend_energy(2):
 		return false
 	for unit: UnitAgent in allies:
 		unit.apply_shield(shield_amount, shield_duration)
