@@ -1,0 +1,107 @@
+name: Test, export Godot and deploy Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+env:
+  GODOT_VERSION: 4.6.3
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache the official Godot editor and web templates
+        id: godot-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/bin/godot
+            ~/.local/share/godot/export_templates/4.6.3.stable
+          key: godot-official-4.6.3-linux-web-v1
+
+      - name: Install official Godot and web export templates
+        if: steps.godot-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          release="https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}-stable"
+          mkdir -p "$HOME/.local/bin"
+          mkdir -p "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
+          curl --fail --location --retry 3 "$release/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip" --output /tmp/godot-editor.zip
+          unzip -q /tmp/godot-editor.zip -d /tmp/godot-editor
+          install -m 755 "/tmp/godot-editor/Godot_v${GODOT_VERSION}-stable_linux.x86_64" "$HOME/.local/bin/godot"
+          curl --fail --location --retry 3 "$release/Godot_v${GODOT_VERSION}-stable_export_templates.tpz" --output /tmp/godot-templates.tpz
+          unzip -q /tmp/godot-templates.tpz 'templates/web*.zip' -d /tmp/godot-templates
+          cp /tmp/godot-templates/templates/web*.zip "$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.stable/"
+
+      - name: Add Godot to PATH
+        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Import the Godot project
+        run: godot --headless --editor --import --quit
+
+      - name: Run game integration tests
+        run: godot --headless --path . --script res://tests/run_tests.gd
+
+      - name: Export the actual Godot game for the web
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p builds/web
+          godot --headless --path . --export-release Web builds/web/index.html
+          test -s builds/web/index.html
+          test -s builds/web/index.js
+          test -s builds/web/index.wasm
+          test -s builds/web/index.pck
+          touch builds/web/.nojekyll
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          root = Path('builds/web')
+          manifest = {'source_commit': os.environ['GITHUB_SHA'], 'godot_version': os.environ['GODOT_VERSION'], 'single_threaded': True, 'files': {}}
+          for path in sorted(root.iterdir()):
+              if path.is_file():
+                  manifest['files'][path.name] = {'bytes': path.stat().st_size, 'sha256': hashlib.sha256(path.read_bytes()).hexdigest()}
+          (root / 'build-info.json').write_text(json.dumps(manifest, indent=2))
+          PY
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload playable web build
+        uses: actions/upload-artifact@v4
+        with:
+          name: nantianmen-godot-web
+          path: builds/web
+          retention-days: 14
+
+      - name: Upload GitHub Pages package
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: builds/web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

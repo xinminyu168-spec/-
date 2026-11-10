@@ -1,0 +1,6 @@
+.godot/
+builds/
+*.tmp
+*.tpz
+*.zip
+export_credentials.cfg
