@@ -62,6 +62,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p builds/web
+          touch builds/.gdignore
           godot --headless --path . --export-release Web builds/web/index.html
           test -s builds/web/index.html
           test -s builds/web/index.js

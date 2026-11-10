@@ -1,6 +1,8 @@
 class_name EngineeringBay
 extends Node2D
 
+const UI_FONT: Font = preload("res://assets/fonts/ntm-ui.otf")
+
 @export var lane: int = 0
 @export_range(0.5, 30.0, 0.5) var spawn_interval: float = 4.0
 
@@ -36,4 +38,4 @@ func _draw() -> void:
 	draw_rect(Rect2(-44.0, -25.0, 88.0, 50.0), Color("6bc8ff"), false, 2.0)
 	draw_rect(Rect2(-18.0, -30.0, 36.0, 9.0), Color("8be2ff"))
 	var label: String = "工程舱 L" if lane == 0 else "工程舱 R"
-	draw_string(ThemeDB.fallback_font, Vector2(-32.0, 6.0), label, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 14, Color.WHITE)
+	draw_string(UI_FONT, Vector2(-32.0, 6.0), label, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 14, Color.WHITE)

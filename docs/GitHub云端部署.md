@@ -3,7 +3,7 @@
 本工程通过 GitHub Actions 运行 Godot 4.6.3 的真实 Web 导出，再发布到 GitHub Pages。网页内运行的是本项目的 Godot 游戏，和编辑器使用相同的场景与 GDScript。
 
 - 源码仓库： https://github.com/xinminyu168-spec/nantianmen-godot
-- 在线试玩： https://xinminyu168-spec.github.io/nantianmen-godot/
+- 目标试玩地址（首次成功发布后可用）： https://xinminyu168-spec.github.io/nantianmen-godot/
 - 构建记录： https://github.com/xinminyu168-spec/nantianmen-godot/actions
 
 ## 后续更新
@@ -21,6 +21,7 @@
 - 固定 540×960 逻辑画布，按浏览器窗口等比适配。
 - 相对资源路径，支持仓库子路径 `/nantianmen-godot/`。
 - 不启用离线服务工作线程，减少更新后的缓存干扰。
+- 随工程打包了约 100 KB 的 Noto CJK 字体子集，保证网页上的中文不依赖系统字体；许可和来源保留于 `assets/fonts/OFL-Noto-CJK.txt`。
 
 第一次打开需要下载 Godot WebAssembly 运行时和游戏包，加载耗时受网络影响。浏览器中若出现点击启动提示，点击后即可进入游戏。手机浏览器支持触摸按钮；横屏会留边。
 

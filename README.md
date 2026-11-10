@@ -1,8 +1,8 @@
 # 南天门计划：Godot 4 竖屏双路白盒原型
 
-这是独立的 **Godot 4 / GDScript** 项目，不是之前的 H5 版本。没有外部插件、收费资源或美术依赖。
+这是独立的 **Godot 4 / GDScript** 项目。没有外部插件或收费资源，网页版本随包附带开源中文字体。
 
-**在线试玩： https://xinminyu168-spec.github.io/nantianmen-godot/**
+**目标试玩地址（首次 GitHub 发布成功后可用）： https://xinminyu168-spec.github.io/nantianmen-godot/**
 
 **源码仓库： https://github.com/xinminyu168-spec/nantianmen-godot**
 

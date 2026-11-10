@@ -1,4 +1,4 @@
-[gd_scene load_steps=8 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scripts/battle_game.gd" id="1_game"]
 [ext_resource type="Script" path="res://scripts/battlefield.gd" id="2_field"]
@@ -6,6 +6,10 @@
 [ext_resource type="Script" path="res://scripts/wave_manager.gd" id="4_wave"]
 [ext_resource type="Script" path="res://scripts/skill_manager.gd" id="5_skill"]
 [ext_resource type="Script" path="res://scripts/battle_hud.gd" id="6_hud"]
+[ext_resource type="FontFile" path="res://assets/fonts/ntm-ui.otf" id="7_font"]
+
+[sub_resource type="Theme" id="Theme_ui"]
+default_font = ExtResource("7_font")
 [sub_resource type="StyleBoxFlat" id="Style_panel"]
 bg_color = Color(0.08, 0.13, 0.19, 1)
 border_width_left = 1
@@ -58,6 +62,7 @@ layout_mode = 0
 offset_right = 540.0
 offset_bottom = 960.0
 mouse_filter = 2
+theme = SubResource("Theme_ui")
 script = ExtResource("6_hud")
 
 [node name="TitleLabel" type="Label" parent="UI/HUD"]
